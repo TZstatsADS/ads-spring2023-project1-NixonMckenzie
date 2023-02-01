@@ -1,0 +1,473 @@
+---
+title: "End Goals in the Eyes of Communist vs Capitalist Philosophers"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+# 1 Introduction
+
+Throughout centuries, in the United States capitalism has been the main school of thought that has been in high regards by both scholars, the common person, and the state as a whole. It's been taught in schools as the best economic system, and praised as opportunistic for any and everybody. With these sentiments though, their has been a denouncement of another school of thought - Communism. Communism has been the antithesis of US culture for as long has Capitalism has been praised. 
+
+We know that they're different ideologies but do their goals and intended outcomes differ? Does each school of thought aim it's messaging at different members of society ? Throughout this data story, we aim to answer these questions and get an idea of the similarities and differences of each school of thought
+
+---
+
+# 2 Prelimnary Steps and The Data
+
+Here are the necessary libraries for the analysis. These are a set of packages that are commonly used for text mining, whether that's cleaning up text data or building models to take a closer look at each quote. 
+
+
+```{r}
+library(readr)
+library(tidyverse)
+library(tidytext)
+library(data.table)
+library(udpipe)
+library(lattice)
+library(tm)
+library(ggplot2)
+```
+
+For this analysis we'll be using a philosophy data set that contains quotes and text from philosophers throughout history. Due to it's size, we'll be using a subset of this data set. We'll assign each school of thought to their respective names (Communist school of though = communist, Capitalist school of thought = capitalist).
+
+```{r}
+capitalist <- read_csv('capitalist_data.csv')
+communist <- read_csv('communist_data.csv')
+```
+
+
+---
+
+# 3 The Analysis
+
+## 3.1 What does each school of thought discuss most often?
+
+By looking at a chart of the most frequent terms, we can get a general idea of what's discussed most often within both schools of thought. Here are frequency charts that show the most common words in said in each school of thought  
+
+
+First we use a function to remove the extra terms in the data set, such as words like "and", "that", and "or". These words don't add much value to our analysis, and will allow us to focus on more indicative words in our data set. 
+```{r}
+#terms is the list of un-necessary  terms that are counted
+
+remove_terms <- function(terms){
+  word <- terms
+  lexicon <- c(rep('snowball',length(terms)))
+  philo_terms <- data.frame(word,lexicon)
+  
+  return(rbind(philo_terms, get_stopwords(), by = "lexicon"))
+}
+```
+
+Below is our frequency chart. 
+
+```{r}
+
+#extra removed terms 
+stopwords <- remove_terms(c('therefore', 'upon', 'much'))
+
+#Getting a count of how many times certain words show up in the dataset, removing stopwords
+
+comm_word_freq <- communist %>%
+  unnest_tokens(word,sentence_lowered) %>%
+  anti_join(stopwords) %>%
+  count(word, sort = TRUE)
+
+cap_word_freq <- capitalist %>%
+  unnest_tokens(word,sentence_lowered) %>%
+  anti_join(stopwords) %>%
+  count(word, sort = TRUE)
+
+#plotting data 
+
+cap_word_freq %>%
+  filter(n > 1069) %>%
+  mutate(word = reorder(word,n)) %>%
+  ggplot(aes(word,n)) +
+    geom_col(fill = 'skyblue') +
+    theme_minimal() +
+    theme(plot.subtitle=element_text(size=6, hjust=0.5, face="italic", color="black")) +
+    labs(title = "Most Common Words in Capitalist Theory", subtitle = "Based on 'The Wealth Of Nations', 'On The Principles Of Political Economy And Taxation', and 'A General Theory Of Employment, Interest, And Money'") +
+    ylab("Number of Occurences") +
+    xlab("Word") + 
+    coord_flip()
+
+comm_word_freq %>%
+  filter(n > 684) %>%
+  mutate(word = reorder(word,n)) %>%
+  ggplot(aes(word,n)) +
+    geom_col(fill = 'pink') +
+    theme_minimal() +
+    theme(plot.subtitle=element_text(size=8, hjust=0.5, face="italic", color="black")) +
+    labs(title = "Most Common Words in Communist Theory", subtitle = "Based on 'Capital', 'The Communist Manifesto', and 'Essential Works of Lenin'") +
+    ylab("Number of Occurences") +
+    xlab("Word") + 
+    coord_flip()
+
+
+```
+The distribution is vastly different. Communism mentions labour, it's most frequently used word at a proportionally higher rate than Capitalist mention price, it's most frequently used word. Based on the proportions in which each top word is mentioned in relation to the total number of words, communism mentions labour over 1.5x more than capitalist mentions price. Based on the top words in each school of thought, it's clear that there's a focus on labour and perhaps it's relation to money/capital.  
+
+It's hard to make any real conclusions by just looking at the words,let's now make a bigram chart to check for which words appear nearby one another most often, this will give us a  bigger picture of the ideologies present in the data. 
+
+```{r}
+
+
+comm_bigram <- communist %>%
+  unnest_tokens(bigram, sentence_lowered, token = "ngrams", n =2) %>%
+  separate(bigram, c("word1", "word2"), sep = " ") %>%
+  filter(!word1 %in% stopwords$word, # remove stopwords
+         !word2 %in% stopwords$word) %>%
+  unite(bigram, word1, word2, sep = " ")  # combine columns
+
+
+comm_bigram <- comm_bigram %>%
+  count(bigram, sort = TRUE)
+
+cap_bigram <- capitalist %>%
+  unnest_tokens(bigram, sentence_lowered, token = "ngrams", n =2) %>%
+  separate(bigram, c("word1", "word2"), sep = " ") %>%
+  filter(!word1 %in% stopwords$word, # remove stopwords
+         !word2 %in% stopwords$word) %>%
+  unite(bigram, word1, word2, sep = " ")  # combine columns
+
+
+cap_bigram <- cap_bigram %>%
+  count(bigram, sort = TRUE)
+
+```
+
+Here's the actual chart. 
+
+```{r}
+
+#Lets switch up themes in these visualizations
+comm_bigram %>%
+  filter(n > 84) %>%
+  mutate(word = reorder(bigram,n)) %>%
+  ggplot(aes(bigram,n)) +
+    geom_col(fill = 'magenta') +
+    theme_minimal() +
+    labs(title = "Communist Phrases", subtitle = "Words That appear next to one another") +
+    ylab("Number of Occurences") +
+    xlab("Word") + 
+    coord_flip()
+
+cap_bigram %>%
+  filter(n > 90) %>%
+  mutate(word = reorder(bigram,n)) %>%
+  ggplot(aes(bigram,n)) +
+    geom_col(fill = 'blue') +
+    theme_minimal() +
+    labs(title = "Capitalist Phrases", subtitle = "Words That appear next to one another") +
+    ylab("Number of Occurences") +
+    xlab("Word") + 
+    coord_flip()
+
+
+```
+
+Based on the figures detailing words that are close to one another, we can get an idea of common phrases in each school of thought. Within Communism, we see that the idea of Labour and Power are deeply intertwined, as well the idea of surplus and value. Within the capitalist school of thought we see that greater and part is mentioned quite a bit, as well as Great Britain. 
+
+
+
+```{r}
+#sample
+library(data.table)
+
+head(capitalist %>%
+  filter(str_detect(sentence_lowered, "greater")) %>%
+  filter(str_detect(sentence_lowered, "part")),1)$sentence_str
+
+head(communist %>%
+  filter(str_detect(sentence_lowered, "labour")) %>%
+  filter(str_detect(sentence_lowered, "power")),1 )$sentence_str 
+
+```
+
+
+Upon taking a deeper look at these phrases within the dataset we see that the capitalist school of thought is focused on gaining something "better", as with the huge frequency of "greater" and "part" which is often used as meaning the better part of something previously mentioned. On the other hand, the communist school is aimed at communicating the idea of labour as a tool of power.
+
+##3.2 Who are they talking too, who is the intended audience ?  
+
+Lets find the audience through checking the level of the language in each school of thought.  Let's start with the average sentence length.  
+
+```{r}
+#the average sentence length of each school of thought. 
+comm_avg_sentence_length <-      mean(sapply(communist$sentence_lowered,function(x)length(unlist(gregexpr(" ",x)))+1))
+
+cap_avg_sentence_length <-
+mean(sapply(capitalist$sentence_lowered,function(x)length(unlist(gregexpr(" ",x)))+1))
+
+#divide the average # of characters by avg sentence length to get the avg word length
+comm_avg_word_length <- mean(communist$sentence_length)/ comm_avg_sentence_length
+cap_avg_word_length <- mean(capitalist$sentence_length)/ cap_avg_sentence_length
+
+plots_sen <- data.frame( school = c("Communism Sentences", "Capitalism Sentences"), Length = c(comm_avg_sentence_length, cap_avg_sentence_length))
+plots_wrds <- data.frame( school = c( "Communism Words", "Capitalism Words"), Length = c(comm_avg_word_length, cap_avg_word_length))
+  
+```
+
+
+```{r}
+# Create a bar plot using ggplot
+combined_plots <- rbind(plots_sen, plots_wrds)
+ggplot(combined_plots, aes(x = school, y = Length, fill = school)) +
+  geom_col() +
+  scale_fill_manual(values = c("Communism Sentences" = "red", "Capitalism Sentences" = "blue",
+                                "Communism Words" = "red", "Capitalism Words" = "blue"),
+                    guide = guide_legend(title = "School", labels = c("Communism Sentences", "Capitalism Sentences",
+                                                                      "Communism Words", "Capitalism Words"),
+                                        fill = c("red", "blue", "red", "blue"))) +
+  ggtitle("Frequency Chart") +
+  xlab("School") +
+  ylab("Length") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, size = 18, face = "bold"),
+        axis.text.x = element_text(size = 6),
+        axis.text.y = element_text(size = 14),
+        axis.title.x = element_text(size = 16),
+        axis.title.y = element_text(size = 16),
+        legend.title = element_text(size = 16),
+        legend.text = element_text(size = 14)) 
+
+```
+
+Through some quick analysis we find that the average sentence length of the communist text is approximately 26 words, while the average sentence length for the capitalist text is approximately 33 words.The average word length on the other hand is roughly same, with about 6 letters per word.
+
+
+Both schools of thought communicate in quite a wordy manner, with the communist school of thought having shorter sentences on average. This isn't that surprising though, given that most of these text are quite old. But if we look  at the overall average sentence lengths in English Prose we actually learn that both text have longer than average sentences for their respective time.
+
+Based on the analysis of the nineteenth century scholar L.A Sherman, we get an inside look at average word length from several books from the 16th to 19th century. According to this,the average word length for when all the text were written was between 23 and 16 words. The text in our data set are longer on average but this makes sense given that philosophers and academic writing tend to be a bit more wordy.
+
+
+**Based on this I can assume that this language is aimed at the same audience, a more literate audience, perhaps educated members of society who spend more time reading, such as scholars, professors, or even book worms. The Communist school of thought may be slightly more accessible to the public but still on average in the group of text that require a higher level of literacy to be comprehended.**
+ 
+ 
+## 3.3 What do these schools of thought want? What are the calls to action? 
+
+Through looking at verbs and their context, we can get a general idea of what the authors are asking of the audience. 
+
+###
+First lets get a general picture of the most commonly used verbs in each school of thought.
+
+Lets make a model that can identify different parts of speeches. 
+
+```{r}
+#Parts of Speech Model
+ud_model <- udpipe_download_model(language = "english")
+ud_model <- udpipe_load_model(ud_model$file_model)
+```
+
+
+We have to use a sample, as to reduce run time, but doing so doesn't change much of our analysis given that a sample of this size still contains ideas representative of each data set. Additionally as we increase the amount of quotes we use, each word will increase proportionally assuming each title has a consistent writing style. 
+
+
+```{r}
+#Dataset sample to reduce runtime 
+cap1st5 <- subset(capitalist, title == "The Wealth Of Nations")[1:1000,]
+cap2nd5 <- subset(capitalist, title == "On The Principles Of Political Economy And Taxation")[1:1000,]
+cap3rd5 <- subset(capitalist, title == "A General Theory Of Employment, Interest, And Money")[1:1000,]
+cap_sample <-rbind(cap1st5,cap2nd5) %>%
+  rbind(cap3rd5)
+
+
+
+comm1st5 <- subset(communist, title == "Capital")[1:1000,]
+comm2nd5 <- subset(communist, title == "The Communist Manifesto")[1:1000,]
+comm3rd5 <- subset(communist, title == "Essential Works Of Lenin")[1:1000,]
+
+comm_sample <-rbind(comm1st5,comm2nd5) %>%
+  rbind(comm3rd5)
+```
+
+
+```{r}
+
+#To do the entire dataset, replace the sample with the full datasets for a more comprehensive look at the data 
+
+#creating a data set with just the quotes and unique id's for each
+cap_sentences <- data.frame(c(1:length(cap_sample$sentence_lowered)),cap_sample$sentence_lowered)
+comm_sentences <- data.frame(c(1:length(comm_sample$sentence_lowered)),comm_sample$sentence_lowered)
+
+#cap_sentences <- data.frame(c(1:length(capitalist$sentence_lowered)),capitalist$sentence_lowered)
+#comm_sentences <- data.frame(c(1:length(communist$sentence_lowered)),communist$sentence_lowered)
+
+colnames(cap_sentences) <- c('ids', 'sentence')
+colnames(comm_sentences) <- c('ids', 'sentence')
+```
+
+
+Using 1,500 quotes from each school of thought, let's see what they're saying. 
+
+```{r}
+
+#Tagging the part of speech in each word in each quote
+
+cap_pos <- udpipe_annotate(ud_model, x = cap_sentences$sentence, doc_id = cap_sentences$ids)
+comm_pos <- udpipe_annotate(ud_model, x = comm_sentences$sentence, doc_id = comm_sentences$ids)
+
+comm_pos <- as.data.frame(comm_pos)
+cap_pos <- as.data.frame(cap_pos)
+
+```
+
+Now after taking a look at the data, what are the most common verbs ? 
+
+```{r}
+#Try using a random sample, goal is to get an idea of what is being 
+comm_verbs <- subset(comm_pos, upos %in% c("VERB")) 
+comm_verbs <- txt_freq(comm_verbs$token)
+comm_verbs$key <- factor(comm_verbs$key, levels = rev(comm_verbs$key))
+barchart(key ~ freq, data = head(comm_verbs, 25), col = "khaki1", 
+         main = "Most occurring verbs, Communist", xlab = "Frequency")
+
+cap_verbs <- subset(cap_pos, upos %in% c("VERB")) 
+cap_verbs <- txt_freq(cap_verbs$token)
+cap_verbs$key <- factor(cap_verbs$key, levels = rev(cap_verbs$key))
+barchart(key ~ freq, data = head(cap_verbs, 25), col = "cadetblue1", 
+         main = "Most occurring verbs, Capitalist", xlab = "Frequency")
+```
+The words in this graph are the most commonly used verbs in each school of thought. Despite doing this analysis with multiple unique samples, we always get the same outcome. It's not surprising that the most common verbs in both of schools of thought are things like *working* and *employed* given that the most commonly used words are things like *labour* and *money*. Something to point out is that in the communist dataset we see the prevalence of verbs like *developed* and *becomes* which discusses a change of state. While in the capitalist dataset, we see the prevalence of words like *make* , *made*, and *produced* which are more concerned with creation. 
+
+Now lets gain some context around what is being said here by looking at the importance of certain words but also important co - occurrences in each body of text. 
+
+
+Using Rapid Automatic Keyword Extraction (RAKE), we can find important keywords that appear frequently (in any part of speech) in each quote throughout each school of thought. This is a more nuanced look at different parts of speech. This can tell us not only the most important words, but also the most important phrases.   
+
+
+Let's take a look at the most important adjective and noun combinations, to get an angle on the most important description of the most important things
+```{r}
+x = comm_pos
+stats = comm_verbs
+stats <- keywords_rake(x = x, term = "lemma", group = "doc_id", 
+                       relevant = x$upos %in% c("ADJ", "NOUN"))
+stats$key <- factor(stats$keyword, levels = rev(stats$keyword))
+barchart(key ~ rake, data = head(subset(stats, freq > 3), 20), col = "khaki4", 
+         main = "Key phrases in Communist School of Thought",
+         sub = "Adjectives and Nouns",
+         xlab = "Score")
+
+```
+At first glance, taking a look at the Communist RAKE score graph, we see terms like *Social Deomcrat* and *Social Democracy*. These words both have connotations of a large voice making decisions.The next most important phrase is  *trade unionism*, which is a reference to the the union system in the workplace which is known for giving the workforce bargaining power in their respective company.
+
+
+```{r}
+x = cap_pos
+stats = cap_verbs
+stats <- keywords_rake(x = x, term = "lemma", group = "doc_id", 
+                       relevant = x$upos %in% c("ADJ", "NOUN"))
+stats$key <- factor(stats$keyword, levels = rev(stats$keyword))
+barchart(key ~ rake, data = head(subset(stats, freq > 3), 20), col = "cadetblue4", 
+         main = "Key phrases in Capitalist School of Thought", 
+         sub = "Adjectives and Nouns",
+         xlab = "Score")
+```
+
+
+When looking at the capitalist RAKE graph, we see that one of the top phrasea is *Marginal disutility*. This is in line with the idea of diminishing returns - that a good diminishes as more individuals consume more units of the good. This makes sense as an important given that *quantity* and *value* are some of the most frequently used words in this school of thought - Marginal disutility is a function of somethings value tied to the quantity of it. Another term is *short period* . In capitalist thought, this is also a reference to *short run* which is a period of time in which the quantity of at least one input is fixed and the quantities of the other inputs can be varied. *Professor Pigou* is often cited by Keynes in his work, therefore explaining his prevalence on this list. 
+
+
+Now lets take a look at the most important Verbs in each school of thought. 
+
+```{r}
+x = comm_pos
+stats = comm_verbs
+stats <- keywords_rake(x = x, term = "lemma", group = "doc_id", 
+                       relevant = x$upos %in% c("VERB", "VERB"))
+stats$key <- factor(stats$keyword, levels = rev(stats$keyword))
+barchart(key ~ rake, data = head(subset(stats, freq > 3), 20), col = "antiquewhite", 
+         main = "Keywords in Communist School of Thought",
+         sub = "Verbs",
+         xlab = "Score")
+```
+
+Taking a look at the top 3 most important verbs we can get the general idea that something needs to be end, someone or a group is being exploited, and something needs to be met. If I had to make a most precise guess based on previous analysis, I'd say that the Communist school of thought is concerned with using trade unionism and social democracy to end some sort of exploitation. Perhaps something about *social democracy* in order to have some needs be *met*.
+
+```{r}
+x = cap_pos
+stats = cap_verbs
+stats <- keywords_rake(x = x, term = "lemma", group = "doc_id", 
+                       relevant = x$upos %in% c("VERB", "VERB"))
+stats$key <- factor(stats$keyword, levels = rev(stats$keyword))
+barchart(key ~ rake, data = head(subset(stats, freq > 3), 20), col = "cyan3", 
+         main = "Keywords in Capitalist School of Thought", 
+         sub = "Adjectives and Nouns",
+         xlab = "Score")
+```
+
+In the Capitalist school of thought, there's a problem. The use of *stand* can be both a noun and a verb, and may have been accounted for indirectly in our algorithm. With that being said, let's instead look at associations of the top verbs, to find out what terms they're most closely associated with.  
+
+
+### 3.4 What are the most important verbs associated with? 
+
+
+So where does this leave us ? This gives us the opportunity to find associations in the data and draw a conclusion from their.
+
+Preparing dataset for finding associations.
+
+```{r}
+comm_test <- data.frame(doc_id = communist$title, text = communist$sentence_spacy, stringsAsFactors = F)
+comm_test$doc_id[comm_test$doc_id == 'Capital'] <- 1
+comm_test$doc_id[comm_test$doc_id == 'The Communist Manifesto'] <- 2
+comm_test$doc_id[comm_test$doc_id == 'Essential Works of Lenin'] <- 3
+
+cotm <- VCorpus(DataframeSource(comm_test))
+cotm<-tm_map(cotm, content_transformer(tolower))
+cotm<-tm_map(cotm, stripWhitespace)
+
+comm_dtm<-DocumentTermMatrix(cotm)
+findAssocs(comm_dtm, terms = c("exploit","fix", "examine", "labour"), corlimit = 0.15)
+```
+
+*While doing some previous exploration I've tried out different words not present in that didn't pop up in the current sample, but nonetheless, interesting*
+
+This association matrix for the Communist school of thought has a some interesting details. One of the big associations for the word *fix* is with *exorbitant*. This is likely associated with another one our most important phrases *Social Condition*. This association reinforces the idea that something exorbitant needs to be fixed whether it's through *Trade Unionism*, *Social Democracy* or some other other third thing. The associations for *examine*  also reinforce the idea of fixing something through close examination, given that words like  *critically* and *closely* have a strong association with *examine*. Perhaps some of the associations with adjectives in this matrix are meant to be descriptions of what the school of thought is asking the audience to examine (words like *sad* and *feasible*). Finally, maybe some of the nouns are the things being examined (words like *agriculture*)!
+
+
+
+```{r}
+
+#change the titles to something more readable for DTM's
+cap_test <- data.frame(doc_id = capitalist$title, text = capitalist$sentence_spacy, stringsAsFactors = F)
+cap_test$doc_id[cap_test$doc_id == 'The Wealth Of Nations'] <- 1
+cap_test$doc_id[cap_test$doc_id == 'On The Principles Of Political Economy And Taxation'] <- 2
+cap_test$doc_id[cap_test$doc_id == 'A General Theory Of Employment, Interest, And Money'] <- 3
+
+catm <- VCorpus(DataframeSource(cap_test))
+catm<-tm_map(catm, content_transformer(tolower))
+catm<-tm_map(catm, stripWhitespace)
+
+cap_dtm<-DocumentTermMatrix(catm)
+findAssocs(cap_dtm, terms = c("stand","rent", "demand", "labour"), corlimit = 0.2)
+```
+*Here I tried out some popular quotes in capitalist theory as well as some of the verbs to get another angle*
+
+In the Capitalism association matrix has noteworthy items as well. The first thing is the word *stand*. It's very broad but shares but shares equal association with 16 different words, which means that those words are often used in conjustion with on another. Another thing that is likely obvious is the association between *rent* and *land*.  One item of note is the association of *effective* and *demand*, which combines to make the economics term *effective demand* which is the level of demand that represents a real intention to purchase by people with the means to pay. The other association *for* could be used in terms like *for demand* or *demand for* which could be in reference to one of Capitalism's most famous ideas : Supply and demand. In the case of *supply*
+
+
+# Conclusion
+
+Through these analyses, we've learned a lot about the messaging for both the Communist and Capitalist school of thought. Here are some of our most important findings: 
+
+*Labour is commonly mentioned in both schools of thought, but mentioned significantly more in the Communist school of thought, usually in conjunction with power. 
+*Both schools of thought have a similar audience, a more literate, well read population
+*Both speak about labour but the Capitalist school of thought usually speaks about it in terms of quantities and production
+
+
+So in conclusion, data can paint many pictures and this analysis presents the reader with a breakdown of the messaging. Based on this messaging, it's safe to say that each school of thought simply has different goals with their messaging, while focusing the same topic - labour. 
+
+
+In the Capitalist school of thought, labour is often associated with quantity and value, it is one of the most mentioned words, but price and money are above it in terms of frequency. With this knowledge it seems that the focus of this school of thought is that labour is transactional, based on price and money. This is broken down through the use of some of the most important key words *marginal product* and *marginal disutility*. The goal of the Capitalist school of thought is to quantify labour and production and break it down into smaller parts in attempts the inform the audience. 
+
+
+In the Communist school of thought, labour is almost always in conjuction with power. Within the analysis labour and power are never far from one another. Labour is the most mentioned word, Labour power is the most mentioned phrase, and the strongest association with labour, is power. Based on this, the association matrix, and the overall analysis, the goal of the Communist school of thought is to have it's audience critically examine the idea of labour power.
+
+## Now what's the answer?
+
+Given that both of schools of thought skew towards a smarter than average audience, then the answer is no, *Capitalist and Communist Philosophers do not have the same end goals for society.* It seems as though the capitalist school of thought aims to inform it's audience who is likely educated on the ins and outs of labour, thus giving them a deep understanding of it. The communist school of thought on the other hand aims to inform it's also educated audience on the value of labour power and the working class consciousness. 
+
+While I said no to answer this question simply because of what is being communicated through the data, this is a hard question to answer. Although both schools of thought may have intended for a thriving society, nuances in their messaging and human nature get in the way of that goal. 
+
+
