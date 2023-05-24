@@ -2,4 +2,4 @@
 
 ### Doc folder
 
-The doc directory contains the report or presentation files. It can have subfolders.  
+Philosophy.pdf is the file that contains full analysis with code,text, and figures. 
